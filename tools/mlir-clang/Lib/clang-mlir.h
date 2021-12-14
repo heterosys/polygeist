@@ -35,9 +35,10 @@
 #include "pragmaHandler.h"
 #include "llvm/IR/DerivedTypes.h"
 
-#include "clang/../../lib/CodeGen/CGRecordLayout.h"
-#include "clang/../../lib/CodeGen/CodeGenModule.h"
 #include "clang/AST/Mangle.h"
+#include "clang/AST/RecordLayout.h"
+#include "clang/CodeGen/CodeGenABITypes.h"
+#include "clang/CodeGen/ModuleBuilder.h"
 
 using namespace clang;
 using namespace mlir;
@@ -60,9 +61,8 @@ struct MLIRASTConsumer : public ASTConsumer {
   mlir::OwningOpRef<mlir::ModuleOp> &module;
   clang::SourceManager &SM;
   llvm::LLVMContext lcontext;
-  llvm::Module llvmMod;
   CodeGenOptions codegenops;
-  CodeGen::CodeGenModule CGM;
+  CodeGenerator &CG;
   bool error;
   ScopLocList scopLocList;
   LowerToInfo LTInfo;
@@ -84,18 +84,20 @@ struct MLIRASTConsumer : public ASTConsumer {
         llvmStringGlobals(llvmStringGlobals), globals(globals),
         functions(functions), llvmGlobals(llvmGlobals),
         llvmFunctions(llvmFunctions), PP(PP), astContext(astContext),
-        module(module), SM(SM), lcontext(), llvmMod("tmp", lcontext),
-        codegenops(),
-        CGM(astContext, PP.getHeaderSearchInfo().getHeaderSearchOpts(),
-            PP.getPreprocessorOpts(), codegenops, llvmMod, PP.getDiagnostics()),
+        module(module), SM(SM), lcontext(), codegenops(),
+        CG(*(CreateLLVMCodeGen(PP.getDiagnostics(), "tmp",
+                               PP.getHeaderSearchInfo().getHeaderSearchOpts(),
+                               PP.getPreprocessorOpts(), codegenops,
+                               lcontext))),
         error(false), typeTranslator(*module->getContext()),
         reverseTypeTranslator(lcontext) {
+    CG.Initialize(astContext);
     addPragmaScopHandlers(PP, scopLocList);
     addPragmaEndScopHandlers(PP, scopLocList);
     addPragmaLowerToHandlers(PP, LTInfo);
   }
 
-  ~MLIRASTConsumer() {}
+  ~MLIRASTConsumer() { delete &CG; }
 
   mlir::FuncOp GetOrCreateMLIRFunction(const FunctionDecl *FD);
 

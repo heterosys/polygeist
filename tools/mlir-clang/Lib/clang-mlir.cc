@@ -38,6 +38,7 @@ using namespace std;
 using namespace clang;
 using namespace llvm;
 using namespace clang::driver;
+using namespace clang::CodeGen;
 using namespace llvm::opt;
 using namespace mlir;
 using namespace mlir::arith;
@@ -164,7 +165,7 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
     }
     bool LLVMABI = false;
 
-    if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(parm->getType()))
+    if (Glob.getMLIRType(Glob.astContext.getPointerType(parm->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
 
@@ -233,10 +234,9 @@ MLIRScanner::MLIRScanner(MLIRASTConsumer &Glob, mlir::FuncOp function,
           V = builder.create<LLVM::BitcastOp>(loc, subType, V);
 
           isArray = false;
-          auto subType2 =
-              Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                   QualType(BaseType, 0)),
-                               &isArray);
+          auto subType2 = Glob.getMLIRType(
+              Glob.astContext.getLValueReferenceType(QualType(BaseType, 0)),
+              &isArray);
           if (subType2.isa<MemRefType>())
             V = builder.create<polygeist::Pointer2MemrefOp>(loc, subType2, V);
 
@@ -603,8 +603,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
   bool LLVMABI = false;
   bool isArray = false;
 
-  if (Glob.getMLIRType(
-              Glob.CGM.getContext().getLValueReferenceType(decl->getType()))
+  if (Glob.getMLIRType(Glob.astContext.getLValueReferenceType(decl->getType()))
           .isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else
@@ -612,7 +611,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
 
   if (!LLVMABI && isArray) {
     subType = Glob.getMLIRType(
-        Glob.CGM.getContext().getLValueReferenceType(decl->getType()));
+        Glob.astContext.getLValueReferenceType(decl->getType()));
   }
 
   if (auto init = decl->getInit()) {
@@ -646,7 +645,8 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
       for (auto a : algn->children()) {
         if (auto IL = dyn_cast<IntegerLiteral>(a)) {
           if (IL->getValue() == 8192) {
-            llvm::Type *T = Glob.CGM.getTypes().ConvertType(decl->getType());
+            llvm::Type *T =
+                convertTypeForMemory(Glob.CG.CGM(), decl->getType());
             subType = Glob.typeTranslator.translateType(T);
             LLVMABI = true;
             break;
@@ -656,7 +656,7 @@ ValueCategory MLIRScanner::VisitVarDecl(clang::VarDecl *decl) {
     }
   } else if (auto ava = decl->getAttr<InitPriorityAttr>()) {
     if (ava->getPriority() == 8192) {
-      llvm::Type *T = Glob.CGM.getTypes().ConvertType(decl->getType());
+      llvm::Type *T = convertTypeForMemory(Glob.CG.CGM(), decl->getType());
       subType = Glob.typeTranslator.translateType(T);
       LLVMABI = true;
     }
@@ -708,15 +708,14 @@ ValueCategory MLIRScanner::VisitInitListExpr(clang::InitListExpr *expr) {
   bool isArray = false;
   bool LLVMABI = false;
 
-  if (Glob.getMLIRType(
-              Glob.CGM.getContext().getLValueReferenceType(expr->getType()))
+  if (Glob.getMLIRType(Glob.astContext.getLValueReferenceType(expr->getType()))
           .isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else {
     Glob.getMLIRType(expr->getType(), &isArray);
     if (isArray)
       subType = Glob.getMLIRType(
-          Glob.CGM.getContext().getLValueReferenceType(expr->getType()));
+          Glob.astContext.getLValueReferenceType(expr->getType()));
   }
   auto op = createAllocOp(subType, nullptr, /*memtype*/ 0, isArray, LLVMABI);
   InitializeValueByInitListExpr(op, expr);
@@ -935,7 +934,7 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
 
   bool isArray = false;
   bool LLVMABI = false;
-  if (Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
+  if (Glob.getMLIRType(Glob.astContext.getLValueReferenceType(
                            expr->getSubExpr()->getType()))
           .isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
@@ -1074,8 +1073,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
   mlir::Type subType = Glob.getMLIRType(cons->getType(), &isArray);
 
   bool LLVMABI = false;
-  auto ptrty = Glob.getMLIRType(
-      Glob.CGM.getContext().getLValueReferenceType(cons->getType()));
+  auto ptrty =
+      Glob.getMLIRType(Glob.astContext.getLValueReferenceType(cons->getType()));
   if (ptrty.isa<mlir::LLVM::LLVMPointerType>())
     LLVMABI = true;
   else if (isArray) {
@@ -1095,9 +1094,7 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
     } else {
       val = builder.create<LLVM::BitcastOp>(
           loc, LLVM::LLVMPointerType::get(builder.getI8Type()), val);
-      size = Glob.CGM.getContext()
-                 .getTypeSizeInChars(cons->getType())
-                 .getQuantity();
+      size = Glob.astContext.getTypeSizeInChars(cons->getType()).getQuantity();
     }
 
     auto i8_0 = builder.create<ConstantIntOp>(loc, 0, 8);
@@ -1132,8 +1129,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
       if (isArray) {
         assert(arg.isReference);
 
-        auto mt = Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                       a->getType()))
+        auto mt = Glob.getMLIRType(
+                          Glob.astContext.getLValueReferenceType(a->getType()))
                       .cast<MemRefType>();
         auto shape = std::vector<int64_t>(mt.getShape());
         auto pshape = shape[0];
@@ -1158,8 +1155,8 @@ ValueCategory MLIRScanner::VisitConstructCommon(clang::CXXConstructExpr *cons,
       assert(arg.isReference);
 
       if (isArray && arg.val.getType().isa<LLVM::LLVMPointerType>()) {
-        auto mt = Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                       a->getType()))
+        auto mt = Glob.getMLIRType(
+                          Glob.astContext.getLValueReferenceType(a->getType()))
                       .cast<MemRefType>();
         auto shape = std::vector<int64_t>(mt.getShape());
         auto pshape = shape[0];
@@ -1792,9 +1789,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
     if (isArray) {
       assert(sub.isReference);
-      auto mt = Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                     E->getType()))
-                    .cast<MemRefType>();
+      auto mt =
+          Glob.getMLIRType(Glob.astContext.getLValueReferenceType(E->getType()))
+              .cast<MemRefType>();
       auto shape = std::vector<int64_t>(mt.getShape());
       assert(shape.size() == 2);
 
@@ -2262,7 +2259,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
             if (dstArray) {
               std::vector<mlir::Value> start = {getConstantIndex(0)};
-              auto mt = Glob.getMLIRType(Glob.CGM.getContext().getPointerType(
+              auto mt = Glob.getMLIRType(Glob.astContext.getPointerType(
                                              QualType(elem, 0)))
                             .cast<MemRefType>();
               auto shape = std::vector<int64_t>(mt.getShape());
@@ -2273,10 +2270,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               dstargs.push_back(affineOp.getInductionVar());
               builder.setInsertionPointToStart(&affineOp.getLoopBody().front());
               if (srcArray) {
-                auto smt =
-                    Glob.getMLIRType(Glob.CGM.getContext().getPointerType(
-                                         QualType(elem, 0)))
-                        .cast<MemRefType>();
+                auto smt = Glob.getMLIRType(Glob.astContext.getPointerType(
+                                                QualType(elem, 0)))
+                               .cast<MemRefType>();
                 auto sshape = std::vector<int64_t>(smt.getShape());
                 assert(sshape.size() > 0 && sshape.back() != -1);
                 assert(sshape.back() == shape.back());
@@ -2290,10 +2286,9 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
               }
             } else {
               if (srcArray) {
-                auto smt =
-                    Glob.getMLIRType(Glob.CGM.getContext().getPointerType(
-                                         QualType(selem, 0)))
-                        .cast<MemRefType>();
+                auto smt = Glob.getMLIRType(Glob.astContext.getPointerType(
+                                                QualType(selem, 0)))
+                               .cast<MemRefType>();
                 auto sshape = std::vector<int64_t>(smt.getShape());
                 assert(sshape.size() > 0 && sshape.back() != -1);
                 auto affineOp = builder.create<scf::ForOp>(
@@ -2437,9 +2432,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
               if (dstArray) {
                 std::vector<mlir::Value> start = {getConstantIndex(0)};
-                auto mt =
-                    Glob.getMLIRType(Glob.CGM.getContext().getPointerType(elem))
-                        .cast<MemRefType>();
+                auto mt = Glob.getMLIRType(Glob.astContext.getPointerType(elem))
+                              .cast<MemRefType>();
                 auto shape = std::vector<int64_t>(mt.getShape());
                 auto affineOp = builder.create<scf::ForOp>(
                     loc, getConstantIndex(0), getConstantIndex(shape[1]),
@@ -2507,15 +2501,15 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       StringRef name;
       if (auto CC = dyn_cast<CXXConstructorDecl>(sr->getDecl()))
         name =
-            Glob.CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+            Glob.CG.GetMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
       else if (auto CC = dyn_cast<CXXDestructorDecl>(sr->getDecl()))
         name =
-            Glob.CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
+            Glob.CG.GetMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
       else if (sr->getDecl()->hasAttr<CUDAGlobalAttr>())
-        name = Glob.CGM.getMangledName(GlobalDecl(
+        name = Glob.CG.GetMangledName(GlobalDecl(
             cast<FunctionDecl>(sr->getDecl()), KernelReferenceKind::Kernel));
       else
-        name = Glob.CGM.getMangledName(sr->getDecl());
+        name = Glob.CG.GetMangledName(sr->getDecl());
       if (funcs.count(name.str()) || name.startswith("mkl_") ||
           name.startswith("MKL_") || name.startswith("cublas") ||
           name.startswith("cblas_")) {
@@ -2702,8 +2696,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
         }
         assert(arg.isReference);
 
-        auto mt = Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                       a->getType()))
+        auto mt = Glob.getMLIRType(
+                          Glob.astContext.getLValueReferenceType(a->getType()))
                       .cast<MemRefType>();
         auto shape = std::vector<int64_t>(mt.getShape());
         assert(shape.size() == 2);
@@ -2743,7 +2737,7 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
       assert(arg.isReference);
 
       expectedType = Glob.getMLIRType(
-          Glob.CGM.getContext().getLValueReferenceType(a->getType()));
+          Glob.astContext.getLValueReferenceType(a->getType()));
 
       val = arg.val;
       if (arg.val.getType().isa<LLVM::LLVMPointerType>() &&
@@ -2793,8 +2787,8 @@ ValueCategory MLIRScanner::VisitCallExpr(clang::CallExpr *expr) {
 
   mlir::Value alloc;
   if (isArrayReturn) {
-    auto mt = Glob.getMLIRType(Glob.CGM.getContext().getLValueReferenceType(
-                                   expr->getType()))
+    auto mt = Glob.getMLIRType(
+                      Glob.astContext.getLValueReferenceType(expr->getType()))
                   .cast<MemRefType>();
 
     auto shape = std::vector<int64_t>(mt.getShape());
@@ -3833,27 +3827,7 @@ ValueCategory MLIRScanner::CommonFieldLookup(clang::QualType CT,
     }
   }
 
-  if (rd->isUnion() ||
-      (CXRD && (!CXRD->hasDefinition() || CXRD->isPolymorphic() ||
-                CXRD->getDefinition()->getNumBases() > 0)) ||
-      recursive || ST->isPacked() ||
-      (!ST->isLiteral() && (ST->getName().contains("SmallVector") ||
-                            ST->getName() == "struct._IO_FILE" ||
-                            ST->getName() == "class.std::basic_ifstream" ||
-                            ST->getName() == "class.std::basic_istream" ||
-                            ST->getName() == "class.std::basic_ostream" ||
-                            ST->getName() == "class.std::basic_ofstream"))) {
-    auto &layout = Glob.CGM.getTypes().getCGRecordLayout(rd);
-    fnum = layout.getLLVMFieldNo(FD);
-  } else {
-    fnum = 0;
-    for (auto field : rd->fields()) {
-      if (field == FD) {
-        break;
-      }
-      fnum++;
-    }
-  }
+  fnum = getLLVMFieldNumber(Glob.CG.CGM(), rd, FD);
 
   if (auto PT = val.getType().dyn_cast<mlir::LLVM::LLVMPointerType>()) {
     mlir::Value vec[3] = {val, builder.create<ConstantIntOp>(loc, 0, 32),
@@ -3950,7 +3924,7 @@ ValueCategory MLIRScanner::VisitDeclRefExpr(DeclRefExpr *E) {
     return Visit(ED->getInitExpr());
   }
   if (auto VD = dyn_cast<ValueDecl>(E->getDecl())) {
-    if (Glob.getMLIRType(Glob.CGM.getContext().getPointerType(E->getType()))
+    if (Glob.getMLIRType(Glob.astContext.getPointerType(E->getType()))
             .isa<mlir::LLVM::LLVMPointerType>() ||
         name == "stderr" || name == "stdout" || name == "stdin" ||
         (E->hasQualifier())) {
@@ -3994,32 +3968,6 @@ ValueCategory MLIRScanner::VisitOpaqueValueExpr(OpaqueValueExpr *E) {
 ValueCategory MLIRScanner::VisitCXXTypeidExpr(clang::CXXTypeidExpr *expr) {
   assert(0 && "typeid expr unhandled");
   llvm_unreachable("typeid expr unhandled");
-  /*
-  llvm::Type *StdTypeInfoPtrTy =
-    ConvertType(E->getType())->getPointerTo();
-
-  if (E->isTypeOperand()) {
-    llvm::Constant *TypeInfo =
-        CGM.GetAddrOfRTTIDescriptor(E->getTypeOperand(getContext()));
-    return Builder.CreateBitCast(TypeInfo, StdTypeInfoPtrTy);
-  }
-
-  // C++ [expr.typeid]p2:
-  //   When typeid is applied to a glvalue expression whose type is a
-  //   polymorphic class type, the result refers to a std::type_info object
-  //   representing the type of the most derived object (that is, the dynamic
-  //   type) to which the glvalue refers.
-  // If the operand is already most derived object, no need to look up vtable.
-  if (E->isPotentiallyEvaluated() && !E->isMostDerived(getContext())) {
-      assert(0 && "unhandled");
-    //return EmitTypeidFromVTable(*this, E->getExprOperand(),
-    //                            StdTypeInfoPtrTy);
-  }
-
-  QualType OperandTy = E->getExprOperand()->getType();
-  return Builder.CreateBitCast(CGM.GetAddrOfRTTIDescriptor(OperandTy),
-                               StdTypeInfoPtrTy);
-                               */
 }
 
 ValueCategory
@@ -4605,11 +4553,11 @@ mlir::LLVM::LLVMFuncOp
 MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
   std::string name;
   if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    name = CG.GetMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
   else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+    name = CG.GetMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
-    name = CGM.getMangledName(FD).str();
+    name = CG.GetMangledName(FD).str();
 
   if (llvmFunctions.find(name) != llvmFunctions.end()) {
     return llvmFunctions[name];
@@ -4632,7 +4580,8 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
                                                 /*isVarArg=*/FD->isVariadic());
 
   LLVM::Linkage lnk;
-  switch (CGM.getFunctionLinkage(FD)) {
+  switch (llvm::GlobalValue::LinkageTypes::
+              ExternalLinkage /*CG.CGM().getFunctionLinkage(FD) FIXME*/) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
     break;
@@ -4676,7 +4625,7 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
 
 mlir::LLVM::GlobalOp
 MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
-  std::string name = CGM.getMangledName(FD).str();
+  std::string name = CG.GetMangledName(FD).str();
 
   if (llvmGlobals.find(name) != llvmGlobals.end()) {
     return llvmGlobals[name];
@@ -4685,8 +4634,9 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
   LLVM::Linkage lnk;
   if (!isa<VarDecl>(FD))
     FD->dump();
-  switch (CGM.getLLVMLinkageVarDefinition(cast<VarDecl>(FD),
-                                          /*isConstant*/ false)) {
+  switch (llvm::GlobalValue::LinkageTypes::ExternalLinkage
+  /*CG.CGM().getLLVMLinkageVarDefinition(cast<VarDecl>(FD), false)
+  FIXME*/) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
     break;
@@ -4750,7 +4700,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
 
 std::pair<mlir::memref::GlobalOp, bool>
 MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
-  std::string name = prefix + CGM.getMangledName(FD).str();
+  std::string name = prefix + CG.GetMangledName(FD).str();
 
   if (globals.find(name) != globals.end()) {
     return globals[name];
@@ -4784,8 +4734,9 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
     initial_value = builder.getUnitAttr();
   }
 
-  switch (CGM.getLLVMLinkageVarDefinition(cast<VarDecl>(FD),
-                                          /*isConstant*/ false)) {
+  switch (llvm::GlobalValue::LinkageTypes::ExternalLinkage
+    /*CG.CGM().getLLVMLinkageVarDefinition(cast<VarDecl>(FD), false) 
+    FIXME*/) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = mlir::SymbolTable::Visibility::Private;
     break;
@@ -4859,23 +4810,25 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       FunctionDecl::TemplatedKind::TK_DependentFunctionTemplateSpecialization);
   std::string name;
   if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+    name = CG.GetMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
   else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    name = CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+    name = CG.GetMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
   else
-    name = CGM.getMangledName(FD).str();
+    name = CG.GetMangledName(FD).str();
 
   assert(name != "free");
 
   llvm::GlobalValue::LinkageTypes LV;
-  if (!FD->hasBody())
-    LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage;
-  else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
+  // if (!FD->hasBody())
+  LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage; // FIXME
+  /*else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
+    LV =
+        CG.CGM().getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
   else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    LV = CGM.getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
+    LV =
+        CG.CGM().getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
   else
-    LV = CGM.getFunctionLinkage(FD);
+    LV = CG.CGM().getFunctionLinkage(FD);*/
 
   LLVM::Linkage lnk;
   switch (LV) {
@@ -4986,9 +4939,9 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
       bool ArrayStruct = false;
       auto t = getMLIRType(parm->getType(), &ArrayStruct);
       if (ArrayStruct) {
-        auto mt = getMLIRType(
-                      CGM.getContext().getLValueReferenceType(parm->getType()))
-                      .cast<MemRefType>();
+        auto mt =
+            getMLIRType(astContext.getLValueReferenceType(parm->getType()))
+                .cast<MemRefType>();
         t = mt; // auto shape = std::vector<int64_t>(mt.getShape());
         // t = mlir::MemRefType::get(shape, mt.getElementType(),
         //                                mt.getLayout(),
@@ -5006,9 +4959,9 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   std::vector<mlir::Type> rettypes;
 
   if (isArrayReturn) {
-    auto mt = getMLIRType(
-                  CGM.getContext().getLValueReferenceType(FD->getReturnType()))
-                  .cast<MemRefType>();
+    auto mt =
+        getMLIRType(astContext.getLValueReferenceType(FD->getReturnType()))
+            .cast<MemRefType>();
 
     auto shape = std::vector<int64_t>(mt.getShape());
     assert(shape.size() == 2);
@@ -5067,12 +5020,12 @@ void MLIRASTConsumer::run() {
     std::string name;
     if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
       name =
-          CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+          CG.GetMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
     else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
       name =
-          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+          CG.GetMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
-      name = CGM.getMangledName(FD).str();
+      name = CG.GetMangledName(FD).str();
 
     if (done.count(name))
       continue;
@@ -5113,24 +5066,18 @@ void MLIRASTConsumer::HandleDeclContext(DeclContext *DC) {
     }
 
     bool externLinkage = true;
-    /*
-    auto LV = CGM.getFunctionLinkage(fd);
-    if (LV == llvm::GlobalValue::InternalLinkage || LV ==
-    llvm::GlobalValue::PrivateLinkage) externLinkage = false; if
-    (fd->isInlineSpecified()) externLinkage = false;
-    */
-    if (!CGM.getContext().DeclMustBeEmitted(fd))
+    if (!astContext.DeclMustBeEmitted(fd))
       externLinkage = false;
 
     std::string name;
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
       name =
-          CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+          CG.GetMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
     else if (auto CC = dyn_cast<CXXDestructorDecl>(fd))
       name =
-          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+          CG.GetMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
-      name = CGM.getMangledName(fd).str();
+      name = CG.GetMangledName(fd).str();
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5188,24 +5135,18 @@ bool MLIRASTConsumer::HandleTopLevelDecl(DeclGroupRef dg) {
     }
 
     bool externLinkage = true;
-    /*
-    auto LV = CGM.getFunctionLinkage(fd);
-    if (LV == llvm::GlobalValue::InternalLinkage || LV ==
-    llvm::GlobalValue::PrivateLinkage) externLinkage = false; if
-    (fd->isInlineSpecified()) externLinkage = false;
-    */
-    if (!CGM.getContext().DeclMustBeEmitted(fd))
+    if (!astContext.DeclMustBeEmitted(fd))
       externLinkage = false;
 
     std::string name;
     if (auto CC = dyn_cast<CXXConstructorDecl>(fd))
       name =
-          CGM.getMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
+          CG.GetMangledName(GlobalDecl(CC, CXXCtorType::Ctor_Complete)).str();
     else if (auto CC = dyn_cast<CXXDestructorDecl>(fd))
       name =
-          CGM.getMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
+          CG.GetMangledName(GlobalDecl(CC, CXXDtorType::Dtor_Complete)).str();
     else
-      name = CGM.getMangledName(fd).str();
+      name = CG.GetMangledName(fd).str();
 
     // Don't create std functions unless necessary
     if (StringRef(name).startswith("_ZNKSt"))
@@ -5327,7 +5268,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
   }
   if (auto RT = dyn_cast<clang::RecordType>(qt)) {
     llvm::StructType *ST =
-        cast<llvm::StructType>(CGM.getTypes().ConvertType(qt));
+        cast<llvm::StructType>(convertTypeForMemory(CG.CGM(), qt));
 
     if (RT->getDecl()->field_empty())
       if (ST->getNumElements() == 1 && ST->getElementType(0U)->isIntegerTy(8))
@@ -5392,7 +5333,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       for (auto f : RT->getDecl()->fields()) {
         llvm::errs() << " +++ ";
         f->getType()->dump();
-        llvm::errs() << " @@@ " << *CGM.getTypes().ConvertType(f->getType())
+        llvm::errs() << " @@@ " << *convertTypeForMemory(CG.CGM(), f->getType())
                      << "\n";
       }
       llvm::errs() << "types\n";
@@ -5471,7 +5412,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
                                                 ->getUnqualifiedDesugaredType();
 
     if (PTT->isCharType() || PTT->isVoidType() || PTT->isFunctionType()) {
-      llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
+      llvm::Type *T = convertTypeForMemory(CG.CGM(), QualType(t, 0));
       return typeTranslator.translateType(T);
     }
     bool subRef = false;
@@ -5525,7 +5466,7 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
       OpBuilder builder(module->getContext());
       return builder.getIntegerType(8);
     }
-    llvm::Type *T = CGM.getTypes().ConvertType(QualType(t, 0));
+    llvm::Type *T = convertTypeForMemory(CG.CGM(), QualType(t, 0));
     return getMLIRType(T);
   }
   qt->dump();
@@ -5534,9 +5475,9 @@ mlir::Type MLIRASTConsumer::getMLIRType(clang::QualType qt, bool *implicitRef,
 
 llvm::Type *MLIRASTConsumer::getLLVMType(clang::QualType t) {
   if (t->isVoidType()) {
-    return llvm::Type::getVoidTy(llvmMod.getContext());
+    return llvm::Type::getVoidTy(CG.GetModule()->getContext());
   }
-  llvm::Type *T = CGM.getTypes().ConvertType(t);
+  llvm::Type *T = convertTypeForMemory(CG.CGM(), t);
   return T;
 }
 
@@ -5716,8 +5657,8 @@ llvm::Type *MLIRScanner::getLLVMType(clang::QualType t) {
 }
 
 size_t MLIRScanner::getTypeSize(clang::QualType t) {
-  llvm::Type *T = Glob.CGM.getTypes().ConvertType(t);
-  return (Glob.llvmMod.getDataLayout().getTypeSizeInBits(T) + 7) / 8;
+  llvm::Type *T = convertTypeForMemory(Glob.CG.CGM(), t);
+  return (Glob.CG.GetModule()->getDataLayout().getTypeSizeInBits(T) + 7) / 8;
 }
 
 #include "clang/Frontend/TextDiagnosticBuffer.h"

@@ -151,7 +151,7 @@ void ParallelLower::runOnOperation() {
   symbolTable.getSymbolTable(getOperation());
 
   getOperation()->walk([&](mlir::CallOp bidx) {
-    if (bidx.callee() == "cudaThreadSynchronize")
+    if (bidx.getCallee() == "cudaThreadSynchronize")
       bidx.erase();
   });
 
@@ -358,7 +358,7 @@ void ParallelLower::runOnOperation() {
     });
 
     container.walk([&](LLVM::CallOp call) {
-      if (call.callee().getValue() == "cudaMemcpy") {
+      if (call.getCallee().getValue() == "cudaMemcpy") {
         OpBuilder bz(call);
         auto falsev = bz.create<ConstantIntOp>(call.getLoc(), false, 1);
         bz.create<LLVM::MemcpyOp>(call.getLoc(), call.getOperand(0),

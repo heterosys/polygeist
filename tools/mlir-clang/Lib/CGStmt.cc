@@ -377,7 +377,7 @@ ValueCategory MLIRScanner::VisitOMPParallelForDirective(
     bool LLVMABI = false;
     bool isArray = false;
     if (Glob.getMLIRType(
-                Glob.CGM.getContext().getLValueReferenceType(name->getType()))
+                Glob.astContext.getLValueReferenceType(name->getType()))
             .isa<mlir::LLVM::LLVMPointerType>())
       LLVMABI = true;
     else

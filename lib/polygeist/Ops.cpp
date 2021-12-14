@@ -251,6 +251,8 @@ public:
 
   LogicalResult matchAndRewrite(SubIndexOp op,
                                 PatternRewriter &rewriter) const override {
+    if (!op.source().getDefiningOp())
+      return failure();
     auto srcOp = dyn_cast<SubIndexOp>(op.source().getDefiningOp());
     if (!srcOp)
       return failure();
@@ -291,7 +293,7 @@ public:
     auto constIdx = dyn_cast<arith::ConstantOp>(op.index().getDefiningOp());
     if (!constIdx)
       return failure();
-    auto constValue = constIdx.value().dyn_cast<IntegerAttr>();
+    auto constValue = constIdx.getValue().dyn_cast<IntegerAttr>();
     if (!constValue || !constValue.getType().isa<IndexType>() ||
         constValue.getValue().getZExtValue() != 0)
       return failure();
@@ -486,7 +488,7 @@ struct SelectOfCast : public OpRewritePattern<SelectOp> {
     if (cst1.source().getType() != cst2.source().getType())
       return failure();
 
-    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
                                             cst1.source(), cst2.source());
 
     rewriter.replaceOpWithNewOp<memref::CastOp>(op, op.getType(), newSel);
@@ -511,9 +513,9 @@ struct SelectOfSubIndex : public OpRewritePattern<SelectOp> {
     if (cst1.source().getType() != cst2.source().getType())
       return failure();
 
-    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+    auto newSel = rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
                                             cst1.source(), cst2.source());
-    auto newIdx = rewriter.create<SelectOp>(op.getLoc(), op.condition(),
+    auto newIdx = rewriter.create<SelectOp>(op.getLoc(), op.getCondition(),
                                             cst1.index(), cst2.index());
     rewriter.replaceOpWithNewOp<SubIndexOp>(op, op.getType(), newSel, newIdx);
     return success();
@@ -687,7 +689,8 @@ public:
     if (!src)
       return failure();
 
-    rewriter.replaceOpWithNewOp<Pointer2MemrefOp>(op, op.getType(), src.arg());
+    rewriter.replaceOpWithNewOp<Pointer2MemrefOp>(op, op.getType(),
+                                                  src.getArg());
     return success();
   }
 };

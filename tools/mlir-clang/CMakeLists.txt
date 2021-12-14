@@ -1,4 +1,4 @@
-set( LLVM_LINK_COMPONENTS
+set(LLVM_LINK_COMPONENTS
   ${LLVM_TARGETS_TO_BUILD}
   Analysis
   CodeGen
@@ -16,12 +16,17 @@ set( LLVM_LINK_COMPONENTS
   Vectorize
 )
 
+# WORKAROUND: clang-resource-headers is not in the exported targets
+if(NOT TARGET clang-resource-headers)
+  add_custom_target(clang-resource-headers)
+endif()
+
 add_clang_tool(mlir-clang
   mlir-clang.cc
+  driver/cc1_main.cpp
+  driver/cc1as_main.cpp
+  driver/cc1gen_reproducer_main.cpp
   Lib/CGStmt.cc
-  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1_main.cpp"
-  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1as_main.cpp"
-  "${LLVM_SOURCE_DIR}/../clang/tools/driver/cc1gen_reproducer_main.cpp"
   Lib/pragmaHandler.cc
   Lib/AffineUtils.cc
   Lib/ValueCategory.cc

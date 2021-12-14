@@ -1,6 +1,11 @@
 set(MLIR_CLANG_TEST_DIR ${CMAKE_CURRENT_SOURCE_DIR})
-set(MLIR_CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR})
-set(CLANG_HEADER_DIR ${LLVM_BUILD_MAIN_SRC_DIR}/../clang/lib/Headers)
+set(MLIR_CLANG_BINARY_DIR ${CMAKE_CURRENT_BINARY_DIR}/../)
+if(EXISTS ${LLVM_BUILD_MAIN_SRC_DIR}/../clang/lib/Headers)
+  set(CLANG_HEADER_DIR ${LLVM_BUILD_MAIN_SRC_DIR}/../clang/lib/Headers)
+else()
+  set(CLANG_VERSION_STRING ${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH})
+  set(CLANG_HEADER_DIR /usr/lib/clang/${CLANG_VERSION_STRING}/include)
+endif()
 
 configure_lit_site_cfg(
   ${CMAKE_CURRENT_SOURCE_DIR}/lit.site.cfg.in
@@ -11,7 +16,6 @@ configure_lit_site_cfg(
 
 list(APPEND MLIR_CLANG_TEST_DEPS
   llvm-config 
-  FileCheck count not
   mlir-clang
   split-file
   clang
