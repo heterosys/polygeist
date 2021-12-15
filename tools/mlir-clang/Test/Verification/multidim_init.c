@@ -27,18 +27,21 @@ float foo(int i, int j) {
 // CHECK-DAG: %[[MEM_A:.*]] = memref.alloca() : memref<3x4xf32>
 // CHECK-DAG: %[[MEM_B:.*]] = memref.alloca() : memref<4xf32>
 // CHECK-DAG: %[[MEM_C:.*]] = memref.alloca() : memref<2xf32>
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][0, 0]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][0, 1]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][0, 2]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][0, 3]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 0]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 1]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 2]
-// CHECK: affine.store %[[CST3]], %[[MEM_A]][1, 3]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 0]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 1]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 2]
-// CHECK: affine.store %{{.*}}, %[[MEM_A]][2, 3]
+// CHECK: %[[SUBVIEW_A_0:.*]] = memref.subview %[[MEM_A]][0, 0] [1, 4] [1, 1] : memref<3x4xf32> to memref<4xf32>
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_0]][0]
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_0]][1]
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_0]][2]
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_0]][3]
+// CHECK: %[[SUBVIEW_A_1:.*]] = memref.subview %[[MEM_A]][1, 0] [1, 4] [1, 1] : memref<3x4xf32> to memref<4xf32, #map0>
+// CHECK: affine.store %[[CST3]], %[[SUBVIEW_A_1]][0]
+// CHECK: affine.store %[[CST3]], %[[SUBVIEW_A_1]][1]
+// CHECK: affine.store %[[CST3]], %[[SUBVIEW_A_1]][2]
+// CHECK: affine.store %[[CST3]], %[[SUBVIEW_A_1]][3]
+// CHECK: %[[SUBVIEW_A_2:.*]] = memref.subview %[[MEM_A]][2, 0] [1, 4] [1, 1] : memref<3x4xf32> to memref<4xf32, #map1>
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_2]][0]
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_2]][1]
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_2]][2]
+// CHECK: affine.store %{{.*}}, %[[SUBVIEW_A_2]][3]
 
 // CHECK: affine.store %[[CST1_23]], %[[MEM_B]][0]
 // CHECK: affine.store %[[CST1_23]], %[[MEM_B]][1]

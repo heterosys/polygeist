@@ -30,11 +30,17 @@ int create() {
 // CHECK-NEXT:     %c0_i32 = arith.constant 0 : i32
 // CHECK-NEXT:     %0 = memref.alloca() : memref<1x2xi32>
 // CHECK-NEXT:     %1 = memref.alloca() : memref<1x2xi32>
-// CHECK-NEXT:     affine.store %c0_i32, %1[0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     affine.store %c1_i32, %1[0, 1] : memref<1x2xi32>
-// CHECK-NEXT:     %2 = memref.cast %1 : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     %3 = memref.cast %0 : memref<1x2xi32> to memref<?x2xi32>
-// CHECK-NEXT:     call @byval0(%2, %c2_i32, %3) : (memref<?x2xi32>, i32, memref<?x2xi32>) -> ()
-// CHECK-NEXT:     %4 = affine.load %0[0, 0] : memref<1x2xi32>
-// CHECK-NEXT:     return %4 : i32
-// CHECK-NEXT:   }
+// CHECK-NEXT:     %2 = memref.alloca() : memref<1x2xi32>
+// CHECK-NEXT:     %3 = memref.subview %2[0, 0] [1, 2] [1, 1] : memref<1x2xi32> to memref<2xi32>
+// CHECK-NEXT:     affine.store %c0_i32, %3[0] : memref<2xi32>
+// CHECK-NEXT:     affine.store %c1_i32, %3[1] : memref<2xi32>
+// CHECK-NEXT:     %4 = memref.cast %2 : memref<1x2xi32> to memref<?x2xi32>
+// CHECK-NEXT:     %5 = memref.cast %1 : memref<1x2xi32> to memref<?x2xi32>
+// CHECK-NEXT:     call @byval0(%4, %c2_i32, %5) : (memref<?x2xi32>, i32, memref<?x2xi32>) -> ()
+// CHECK-NEXT:     %6 = affine.load %1[0, 0] : memref<1x2xi32>
+// CHECK-NEXT:     affine.store %6, %0[0, 0] : memref<1x2xi32>
+// CHECK-NEXT:     %7 = affine.load %1[0, 1] : memref<1x2xi32>
+// CHECK-NEXT:     affine.store %7, %0[0, 1] : memref<1x2xi32>
+// CHECK-NEXT:     %8 = memref.subview %0[0, 0] [1, 2] [1, 1] : memref<1x2xi32> to memref<2xi32>
+// CHECK-NEXT:     %9 = affine.load %8[0] : memref<2xi32>
+// CHECK-NEXT:     return %9 : i32
