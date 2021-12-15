@@ -41,3 +41,34 @@ mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
                          f.getCallableResults(), {});
   return b.createOperation(opState);
 }
+
+// Adapted from clang/lib/CodeGen/CodeGenModule.cpp, keeping only the most
+// common cases.
+// TODO: add a public interface in clang
+llvm::GlobalValue::LinkageTypes
+mlirclang::getLLVMLinkage(clang::ASTContext &context, const clang::Decl *D) {
+  GVALinkage Linkage;
+  if (auto *VD = dyn_cast<VarDecl>(D))
+    Linkage = context.GetGVALinkageForVariable(VD);
+  else {
+    Linkage = context.GetGVALinkageForFunction(cast<FunctionDecl>(D));
+  }
+
+  if (Linkage == GVA_Internal)
+    return llvm::GlobalValue::LinkageTypes::InternalLinkage;
+  if (D->hasAttr<WeakAttr>())
+    return llvm::GlobalValue::LinkageTypes::WeakAnyLinkage;
+  if (const auto *FD = D->getAsFunction())
+    if (FD->isMultiVersion() && Linkage == GVA_AvailableExternally)
+      return llvm::GlobalValue::LinkageTypes::LinkOnceAnyLinkage;
+  if (Linkage == GVA_AvailableExternally)
+    return llvm::GlobalValue::LinkageTypes::AvailableExternallyLinkage;
+  if (Linkage == GVA_DiscardableODR)
+    return llvm::GlobalValue::LinkageTypes::LinkOnceODRLinkage;
+  if (Linkage == GVA_StrongODR)
+    return llvm::GlobalValue::LinkageTypes::WeakODRLinkage;
+  if (D->hasAttr<SelectAnyAttr>())
+    return llvm::GlobalValue::LinkageTypes::WeakODRLinkage;
+  assert(Linkage == GVA_StrongExternal);
+  return llvm::GlobalValue::LinkageTypes::ExternalLinkage;
+}

@@ -10,6 +10,11 @@
 #define MLIR_TOOLS_MLIRCLANG_UTILS_H
 
 #include "llvm/ADT/ArrayRef.h"
+#include "llvm/IR/GlobalValue.h"
+
+#include "clang/AST/ASTContext.h"
+#include "clang/AST/Decl.h"
+#include "clang/AST/GlobalDecl.h"
 
 namespace mlir {
 class Operation;
@@ -42,6 +47,10 @@ replaceFuncByOperation(mlir::FuncOp f, llvm::StringRef opName,
                        mlir::OpBuilder &b,
                        llvm::SmallVectorImpl<mlir::Value> &input,
                        llvm::SmallVectorImpl<mlir::Value> &output);
+
+llvm::GlobalValue::LinkageTypes getLLVMLinkage(clang::ASTContext &context,
+                                               const clang::Decl *D);
+
 } // namespace mlirclang
 
 #endif

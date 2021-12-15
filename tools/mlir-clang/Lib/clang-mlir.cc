@@ -4580,8 +4580,7 @@ MLIRASTConsumer::GetOrCreateLLVMFunction(const FunctionDecl *FD) {
                                                 /*isVarArg=*/FD->isVariadic());
 
   LLVM::Linkage lnk;
-  switch (llvm::GlobalValue::LinkageTypes::
-              ExternalLinkage /*CG.CGM().getFunctionLinkage(FD) FIXME*/) {
+  switch (mlirclang::getLLVMLinkage(astContext, FD)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
     break;
@@ -4634,9 +4633,7 @@ MLIRASTConsumer::GetOrCreateLLVMGlobal(const ValueDecl *FD) {
   LLVM::Linkage lnk;
   if (!isa<VarDecl>(FD))
     FD->dump();
-  switch (llvm::GlobalValue::LinkageTypes::ExternalLinkage
-  /*CG.CGM().getLLVMLinkageVarDefinition(cast<VarDecl>(FD), false)
-  FIXME*/) {
+  switch (mlirclang::getLLVMLinkage(astContext, FD)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = LLVM::Linkage::Internal;
     break;
@@ -4734,9 +4731,7 @@ MLIRASTConsumer::GetOrCreateGlobal(const ValueDecl *FD, std::string prefix) {
     initial_value = builder.getUnitAttr();
   }
 
-  switch (llvm::GlobalValue::LinkageTypes::ExternalLinkage
-    /*CG.CGM().getLLVMLinkageVarDefinition(cast<VarDecl>(FD), false) 
-    FIXME*/) {
+  switch (mlirclang::getLLVMLinkage(astContext, FD)) {
   case llvm::GlobalValue::LinkageTypes::InternalLinkage:
     lnk = mlir::SymbolTable::Visibility::Private;
     break;
@@ -4819,16 +4814,10 @@ mlir::FuncOp MLIRASTConsumer::GetOrCreateMLIRFunction(const FunctionDecl *FD) {
   assert(name != "free");
 
   llvm::GlobalValue::LinkageTypes LV;
-  // if (!FD->hasBody())
-  LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage; // FIXME
-  /*else if (auto CC = dyn_cast<CXXConstructorDecl>(FD))
-    LV =
-        CG.CGM().getFunctionLinkage(GlobalDecl(CC, CXXCtorType::Ctor_Complete));
-  else if (auto CC = dyn_cast<CXXDestructorDecl>(FD))
-    LV =
-        CG.CGM().getFunctionLinkage(GlobalDecl(CC, CXXDtorType::Dtor_Complete));
+  if (!FD->hasBody())
+    LV = llvm::GlobalValue::LinkageTypes::ExternalLinkage;
   else
-    LV = CG.CGM().getFunctionLinkage(FD);*/
+    LV = mlirclang::getLLVMLinkage(astContext, FD);
 
   LLVM::Linkage lnk;
   switch (LV) {
