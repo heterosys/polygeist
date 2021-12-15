@@ -39,7 +39,9 @@ mlirclang::replaceFuncByOperation(FuncOp f, StringRef opName, OpBuilder &b,
   // NOTE: The attributes of the provided FuncOp is ignored.
   OperationState opState(b.getUnknownLoc(), opName, input,
                          f.getCallableResults(), {});
-  return b.createOperation(opState);
+  opState.addOperands(output);
+  auto op = b.createOperation(opState);
+  return op;
 }
 
 // Adapted from clang/lib/CodeGen/CodeGenModule.cpp, keeping only the most
