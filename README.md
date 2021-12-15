@@ -1,64 +1,49 @@
-## Build instructions
+## How to build Polygeist
 
 ### Requirements 
-- Working C and C++ toolchains(compiler, linker)
-- cmake
-- make or ninja
+- Working C and C++ toolchains (`build-essential`)
+- LLVM, Clang and MLIR 14.0.0 (development snapshot)
+- Building and testing system: `cmake`, `lit` and `ninja`
 
-### 0. Clone Polygeist
+### 0. Clone Polygeist and install prerequisites
 ```sh
-git clone --recursive https://github.com/wsmoses/Polygeist.git
-cd Polygeist
+git clone https://github.com/heterosys/polygeist.git
+cd polygeist
+
+sudo apt-get install -y build-essential python3-pip
+pip3 install cmake ninja lit
 ```
 
-### 1. Install LLVM, MLIR, Clang, and Polygeist
+### 1. Install LLVM, Clang, and MLIR
 
-#### Option 1: Using pre-built LLVM, MLIR, and Clang
+You can download our nightly pre-built snapshot from https://github.com/heterosys/llvm-nightly.
 
-Polygeist can be built by providing paths to a pre-built MLIR and Clang toolchain.
-
-1. Build LLVM, MLIR, and Clang:
 ```sh
-mkdir llvm-project/build
-cd llvm-project/build
-cmake -G Ninja ../llvm \
-  -DLLVM_ENABLE_PROJECTS="mlir;clang" \
-  -DLLVM_TARGETS_TO_BUILD="host" \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DCMAKE_BUILD_TYPE=DEBUG
-ninja
-ninja check-mlir
+OS_DISTRIBUTER=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
+OS_RELEASE=$(lsb_release -rs)
+
+LLVM_URL="https://github.com/heterosys/llvm-nightly/releases/latest/download/llvm-clang-mlir-dev-${OS_DISTRIBUTER}-${OS_RELEASE}.deb"
+
+TEMP_DEB="$(mktemp)" && \
+  wget -O "${TEMP_DEB}" ${LLVM_URL} && \
+  (sudo dpkg -i "${TEMP_DEB}" || sudo apt-get -yf install)
+rm -f "${TEMP_DEB}"
 ```
 
-2. Build Polygeist:
+### 2. Build Polygeist
+
 ```sh
-mkdir build
-cd build
-cmake -G Ninja .. \
-  -DMLIR_DIR=$PWD/../llvm-project/build/lib/cmake/mlir \
-  -DCLANG_DIR=$PWD/../llvm-project/build/lib/cmake/clang \
-  -DLLVM_TARGETS_TO_BUILD="host" \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DCMAKE_BUILD_TYPE=DEBUG
-ninja
-ninja check-mlir-clang
+cmake -S . -B build \
+  -DCMAKE_BUILD_TYPE=Debug \
+  -DCMAKE_MAKE_PROGRAM=ninja -G Ninja \
+  -DLLVM_EXTERNAL_LIT=`which lit`
+cmake --build build --target all
 ```
 
-#### Option 2: Using unified LLVM, MLIR, Clang, and Polygeist build
+To test mlir-clang:
 
-Polygeist can also be built as an external LLVM project using [LLVM_EXTERNAL_PROJECTS](https://llvm.org/docs/CMake.html#llvm-related-variables).
-
-1. Build LLVM, MLIR, Clang, and Polygeist:
 ```sh
-mkdir build
-cd build
-cmake -G Ninja ../llvm-project/llvm \
-  -DLLVM_ENABLE_PROJECTS="clang;mlir" \
-  -DLLVM_EXTERNAL_PROJECTS="polygeist" \
-  -DLLVM_EXTERNAL_POLYGEIST_SOURCE_DIR=.. \
-  -DLLVM_TARGETS_TO_BUILD="host" \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DCMAKE_BUILD_TYPE=DEBUG
-ninja
-ninja check-mlir-clang
+cmake --build build --target check-mlir-clang
 ```
+
+Cheers! 🍺
