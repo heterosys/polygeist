@@ -1,5 +1,4 @@
-// RUN: mlir-clang %s polybench_alloc_data %stdinclude -S | FileCheck %s
-// XFAIL: *
+// RUN: mlir-clang %s %stdinclude -S --function=* | FileCheck %s
 /**
  * This version is stamped on May 10, 2016
  *
@@ -545,31 +544,9 @@ xmalloc(size_t alloc_sz)
   return ret;
 }
 
-
-//void polybench_free_data(void* ptr)
-//{
-//#ifdef POLYBENCH_ENABLE_INTARRAY_PAD
-//  free_data_from_alloc_table (ptr);
-//#else
-//  free (ptr);
-//#endif
-//}
-
-
-//void* polybench_alloc_data(unsigned long long int n, int elt_size)
-//{
-//  return malloc(n*elt_size);
-//#ifdef POLYBENCH_ENABLE_INTARRAY_PAD
-//  check_alloc_table_state ();
-//#endif
-//
-//  /// FIXME: detect overflow!
-//  size_t val = n;
-//  val *= elt_size;
-//  void* ret = xmalloc (val);
-//
-//  return ret;
-//}
-
-// CHECK: module {
-// CHECK-NEXT: }
+// CHECK: module
+// CHECK: func @polybench_flush_cache()
+// CHECK: func @polybench_prepare_instruments()
+// CHECK: func @polybench_timer_start()
+// CHECK: func @polybench_timer_stop()
+// CHECK: func @polybench_timer_print()

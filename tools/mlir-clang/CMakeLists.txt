@@ -74,4 +74,3 @@ target_link_libraries(mlir-clang PRIVATE
   clangSerialization
 )
 add_dependencies(mlir-clang MLIRPolygeistOpsIncGen MLIRPolygeistPassIncGen)
-add_subdirectory(Test)
