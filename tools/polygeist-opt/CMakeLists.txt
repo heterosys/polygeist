@@ -11,3 +11,5 @@ add_llvm_executable(polygeist-opt polygeist-opt.cpp)
 
 llvm_update_compile_flags(polygeist-opt)
 target_link_libraries(polygeist-opt PRIVATE ${LIBS})
+
+add_custom_target(all-polygeist-opt ALL DEPENDS polygeist-opt)
