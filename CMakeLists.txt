@@ -75,4 +75,61 @@ include(sanitizers)
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
+
+include(GNUInstallDirs)
+install(
+  TARGETS polygeist-opt
+  EXPORT PolygeistTargets
+  LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(
+  TARGETS mlir-clang
+  RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(
+  DIRECTORY "${CMAKE_SOURCE_DIR}/include/polygeist"
+  DIRECTORY "${CMAKE_BINARY_DIR}/include/polygeist"
+  DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+  FILES_MATCHING
+  PATTERN "*.h"
+  PATTERN "*.inc"
+  PATTERN "CMakeFiles" EXCLUDE)
+
+set_target_properties(polygeist-opt PROPERTIES EXPORT_NAME polygeist)
+export(
+  EXPORT PolygeistTargets
+  NAMESPACE polygeist::
+  FILE ${CMAKE_CURRENT_BINARY_DIR}/polygeist/PolygeistTargets.cmake)
+set(ConfigPackageLocation lib/cmake/polygeist)
+install(
+  EXPORT PolygeistTargets
+  FILE PolygeistTargets.cmake
+  NAMESPACE polygeist::
+  DESTINATION ${ConfigPackageLocation})
+
+set(CPACK_PACKAGE_NAME polygeist)
+if(NOT DEFINED CPACK_PACKAGE_VERSION_MAJOR)
+  set(CPACK_PACKAGE_VERSION_MAJOR 0)
+endif()
+if(NOT DEFINED CPACK_PACKAGE_VERSION_MINOR)
+  set(CPACK_PACKAGE_VERSION_MINOR 0)
+endif()
+if(NOT DEFINED CPACK_PACKAGE_VERSION_PATCH)
+  set(CPACK_PACKAGE_VERSION_PATCH git)
+endif()
+if(NOT DEFINED PACKAGE_VERSION)
+  set(PACKAGE_VERSION
+    "${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}")
+endif()
+
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "C/C++ frontend to affine MLIR")
+set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Jason Lau")
+set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "amd64")
+set(CPACK_PACKAGE_VERSION ${PACKAGE_VERSION})
+set(CPACK_DEBIAN_FILE_NAME DEB-DEFAULT)
+
+set(CPACK_DEBIAN_PACKAGE_DEPENDS "zlib1g-dev,libncurses5-dev")
+set(CPACK_GENERATOR DEB)
+include(CPack)
+
 add_subdirectory(test)
