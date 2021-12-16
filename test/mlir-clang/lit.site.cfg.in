@@ -22,4 +22,4 @@ import lit.llvm
 lit.llvm.initialize(lit_config, config)
 
 # Let the main config do the real work.
-lit_config.load_config(config, "@MLIR_CLANG_TEST_DIR@/lit.cfg")
+lit_config.load_config(config, "@MLIR_CLANG_TEST_DIR@/lit.cfg.py")
