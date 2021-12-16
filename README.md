@@ -1,6 +1,7 @@
 # Polygeist
 
 [![Build and Test](https://github.com/heterosys/polygeist/actions/workflows/build.yml/badge.svg)](https://github.com/heterosys/polygeist/actions/workflows/build.yml)
+[![Nightly Snapshot](https://github.com/heterosys/polygeist/actions/workflows/nightly-snapshot.yml/badge.svg)](https://github.com/heterosys/polygeist/actions/workflows/nightly-snapshot.yml)
 
 📥 C/C++ frontend to affine MLIR for polyhedral optimization.
 
