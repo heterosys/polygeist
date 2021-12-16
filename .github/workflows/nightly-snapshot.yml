@@ -36,6 +36,7 @@ jobs:
           path: build/polygeist-${{ steps.date.outputs.date }}-amd64.deb
 
   release:
+    needs: package-deb
     if: github.repository == 'heterosys/polygeist'
     runs-on: ubuntu-latest
     steps:
@@ -59,6 +60,7 @@ jobs:
           path: release_url.txt
 
   upload-release:
+    needs: release
     if: github.repository == 'heterosys/polygeist'
     strategy:
       matrix:
