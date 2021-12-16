@@ -34,3 +34,4 @@ jobs:
         run: |
           cd build
           ninja check-mlir-clang
+          ninja check-polygeist-opt

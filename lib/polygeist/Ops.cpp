@@ -214,25 +214,27 @@ public:
       return failure();
 
     // Build offset, sizes and strides
-    SmallVector<OpFoldResult> sizes(dims, rewriter.getIndexAttr(0));
-    sizes[0] = op.index();
-    SmallVector<OpFoldResult> offsets(dims);
+    SmallVector<OpFoldResult> offsets(dims, rewriter.getIndexAttr(0));
+    offsets[0] = op.index();
+    SmallVector<OpFoldResult> sizes(dims);
     for (auto dim : llvm::enumerate(srcMemRefType.getShape())) {
       if (dim.index() == 0)
-        offsets[0] = rewriter.getIndexAttr(1);
+        sizes[0] = rewriter.getIndexAttr(1);
       else
-        offsets[dim.index()] = rewriter.getIndexAttr(dim.value());
+        sizes[dim.index()] = rewriter.getIndexAttr(dim.value());
     }
     SmallVector<OpFoldResult> strides(dims, rewriter.getIndexAttr(1));
 
-    // Generate the appropriate return type:
-    auto subMemRefType = MemRefType::get(srcMemRefType.getShape().drop_front(),
-                                         srcMemRefType.getElementType());
+    auto subMemRefType = memref::SubViewOp::inferRankReducedResultType(
+        0, srcMemRefType, offsets, sizes, strides);
 
-    rewriter.replaceOpWithNewOp<memref::SubViewOp>(
-        op, subMemRefType, op.source(), sizes, offsets, strides);
-
-    return success();
+    if (auto type = subMemRefType.dyn_cast<MemRefType>()) {
+      rewriter.replaceOpWithNewOp<memref::SubViewOp>(op, type, op.source(),
+                                                     offsets, sizes, strides);
+      return success();
+    } else {
+      return failure();
+    }
   }
 };
 

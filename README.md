@@ -40,10 +40,11 @@ cmake -S . -B build \
 cmake --build build --target all
 ```
 
-To test mlir-clang:
+To test `mlir-clang` and `polygeist-opt`:
 
 ```sh
 cmake --build build --target check-mlir-clang
+cmake --build build --target check-polygeist-opt
 ```
 
 Cheers! 🍺
