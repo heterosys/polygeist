@@ -1,3 +1,9 @@
+# Polygeist
+
+[![Build and Test](https://github.com/heterosys/polygeist/actions/workflows/build.yml/badge.svg)](https://github.com/heterosys/polygeist/actions/workflows/build.yml)
+
+📥 C/C++ frontend to affine MLIR for polyhedral optimization.
+
 ## How to build Polygeist
 
 ### Requirements 
