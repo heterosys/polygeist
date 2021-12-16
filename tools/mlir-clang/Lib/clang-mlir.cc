@@ -944,7 +944,10 @@ ValueCategory MLIRScanner::VisitMaterializeTemporaryExpr(
   if (isArray)
     return v;
 
-  llvm::errs() << "cleanup of materialized not handled";
+  llvm::errs() << "ERROR: cleanup of materialized not handled:\n";
+  expr->dump();
+  llvm::errs() << "=== END OF ERROR ===\n";
+
   auto op = createAllocOp(getMLIRType(expr->getSubExpr()->getType()), nullptr,
                           0, /*isArray*/ isArray, /*LLVMABI*/ LLVMABI);
 
@@ -3802,8 +3805,9 @@ ValueCategory MLIRScanner::VisitBinaryOperator(clang::BinaryOperator *BO) {
 ValueCategory MLIRScanner::VisitExprWithCleanups(ExprWithCleanups *E) {
   auto ret = Visit(E->getSubExpr());
   for (auto &child : E->children()) {
+    llvm::errs() << "ERROR: cleanup not handled:\n";
     child->dump();
-    llvm::errs() << "cleanup not handled\n";
+    llvm::errs() << "=== END OF ERROR ===\n";
   }
   return ret;
 }
