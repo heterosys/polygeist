@@ -33,7 +33,7 @@ jobs:
         uses: actions/upload-artifact@v2
         with:
           name: ${{ matrix.os }}-deb
-          path: build/polygeist-${{ steps.date.outputs.date }}-amd64.deb
+          path: build/polygeist_${{ steps.date.outputs.date }}_amd64.deb
 
   release:
     needs: package-deb
@@ -89,6 +89,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: ${{ matrix.os }}-deb/build/polygeist-${{ steps.date.outputs.date }}-amd64.deb
+          asset_path: ${{ matrix.os }}-deb/polygeist_${{ steps.date.outputs.date }}_amd64.deb
           asset_name: polygeist-${{ matrix.os }}.deb
           asset_content_type: application/vnd.debian.binary-package
